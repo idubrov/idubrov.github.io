@@ -1,0 +1,43 @@
+---
+# Only the main Sass file needs front matter (the dashes are enough)
+---
+
+@import "minima";
+
+code.highlighter-rouge {
+    background-color: #F7F7F7;
+}
+
+.highlight {
+    background-color: #F7F7F7;
+    .highlighter-rouge &, code {
+        background-color: #F7F7F7;
+    }
+
+    // Comments
+    .c
+    { color: #AA3731; font-style: normal; font-weight: normal; }
+
+    // String
+    .s, .sc { color: #448C27; }
+
+    // String escapes
+    .se { color: #777777; }
+
+    // Numbers, characters
+    // #7A3E9D
+    .nv, .mi { color: #7A3E9D; }
+
+    // Global definitions
+    // #325CC0
+
+    // Punctuation
+    // #777777
+
+    // Invalid
+    // back 96000014, fore 660000
+
+    .nf, .nb, .k, .nn, .o, .err { color: black; font-style: normal; font-weight: normal; }
+
+    .err { background-color: #F7F7F7; }
+}
