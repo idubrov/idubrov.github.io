@@ -14,7 +14,7 @@ map.insert("hello".to_string(), "world".to_string());
 assert_eq!("world", map.get("hello").unwrap();
 ```
 
-This might look like a trivial example, but it's not quite that! Notice that the hashmap stores `String` type as a key. However, the key being looked, "hello" is of type `&str`. Not quite the same[^1]! Very convenient, though, as it allows to lookup for an "owned" `String` type using a "borrowed" `&str` type, so heap allocation could be avoided.
+This might look like a trivial example, but it's not that simple! Notice that the hashmap stores `String` type as a key. However, the key being looked, "hello" is of type `&str`. Not the same thing[^1]! Very convenient, though, as it allows to lookup for an "owned" `String` type using a "borrowed" `&str` type, so heap allocation could be avoided.
 
 ### From String to &str
 
