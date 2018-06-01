@@ -1,9 +1,10 @@
 theme: minima
 remote_theme: jekyll/minima
 
-twitter_username: ivandubrov
+#twitter_username: ivandubrov
 github_username: idubrov
 
 email: dubrov.ivan@gmail.com
 author: Ivan Dubrov
 rss: Ivan Dubrov
+title: Ivan Dubrov
