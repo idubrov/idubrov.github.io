@@ -11,14 +11,14 @@ Not quite! Consider the following example (I'm using `get` plus `unwrap` instead
 ```rust
 let mut map: HashMap<String, String> = HashMap::new();
 map.insert("hello".to_string(), "world".to_string());
-assert_eq!("world", map.get("hello").unwrap();
+assert_eq!("world", map.get("hello").unwrap());
 ```
 
 This might look like a trivial example, but it's not that simple! Notice that the hashmap stores `String` type as a key. However, the key being looked, "hello" is of type `&str`. Not the same thing[^1]! Very convenient, though, as it allows to lookup for an "owned" `String` type using a "borrowed" `&str` type, so heap allocation could be avoided.
 
 ### From String to &str
 
-First, let's look closer at the first example to understand why does it work. The naive implementation of hashmap would have `get` function implemented as something like:
+First, let's look closer at the first example to understand why it works. The naive implementation of hashmap would have `get` function implemented as something like:
 
 ```rust
 pub fn get(&self, k: &K) -> Option<&V>
@@ -100,7 +100,7 @@ The `ShortKey` is a wrapper type that contains a reference to the string slice:
 pub struct ShortKey<'a>(&'a str);
 ```
 
-The `Key` trait should be designed in a way that all its implementations could behave identical to the `String` key in the hashmap and at the same time implementing it for the lookup type should it not require allocations on the heap. Something like this will do[^3]:
+The `Key` trait should be designed in a way that all its implementations could behave identical to the `String` key in the hashmap and at the same time implementing it for the lookup type should not require allocations on the heap. Something like this will do[^3]:
 
 ```rust
 pub trait Key {
@@ -243,7 +243,7 @@ Again, the full code is [here](https://github.com/idubrov/experiments/blob/maste
 
 In the end, the non-allocating variant is only marginally better from the performance point of view (as measured with built-in benchmarker). Also, real-world application is unlikely to be doing only hashmap lookups.
 
-Nevertheless, it was fun exploring the way `HashMap` works in Rust and it was a great learning experience.
+Nevertheless, it was fun to explore the way `HashMap` works in Rust and it was a great learning experience.
 
 This idea could be applied to other cases where hashmap key type could not be changed (for example, when using [`serde_json::Value`](https://docs.serde.rs/serde_json/value/enum.Value.html)) or is inconvenient otherwise (for example, a tuple of strings).
 
