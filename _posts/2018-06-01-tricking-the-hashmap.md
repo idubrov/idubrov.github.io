@@ -233,7 +233,7 @@ test with_smart_allocations ... bench:      59,481 ns/iter (+/- 5,291)
 test without_allocations    ... bench:      47,737 ns/iter (+/- 5,414)
 ```
 
-I also measured with different key sizes and the bigger the key size, the smaller the difference (probably, because on large keys hash computation dominates everything else).
+I also measured with various key sizes and the bigger the key size is, the smaller is the difference (probably, because on large keys hash computation dominates everything else).
 
 The non-allocating version would also put a less pressure on the heap allocator.
 
