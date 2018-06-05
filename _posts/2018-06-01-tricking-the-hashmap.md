@@ -249,6 +249,8 @@ This idea could be applied to other cases where hashmap key type could not be ch
 
 ### References
 
+Discussion on [/r/rust](https://www.reddit.com/r/rust/comments/8nwr87/tricking_the_hashmap/).
+
 [^1]: See [str vs String](http://www.ameyalokare.com/rust/2017/10/12/rust-str-vs-String.html) for explanation.
 [^2]: If that sounds like a weird thing to want, here is the [rationale](https://www.hl7.org/fhir/json.html#primitive) for that.
 [^3]: The reason it uses byte and a byte slice and not character plus string slice is to avoid minor troubles of chopping the first character off the string in a UTF-8 compatible way. Slicing "rest of the string" as `&s[1..]` would panic if the first character in the string is longer than a single byte. Since our "prefix" character fits into one byte, it is more convenient to use byte slices. I measured both variants and even though `char` variant needs to deal with UTF-8, they both perform about the same.
