@@ -61,7 +61,7 @@ trait Greeter {
     fn greet(&self, name: &str) -> String;
 }
 
-/// This is a formal version, which uses the first name and the last name.
+/// This is a formal version which uses the first name and the last name.
 trait FormalGreeter {
     fn greet_formal(&self, first_name: &str, last_name: &str) -> String;
 }
@@ -100,7 +100,7 @@ impl FormalGreeter for CountingGreeter {
 }
 ```
 
-Now we want to implement a function that uses an informal greeter interface, if it supported by the provided plugin, or formal greeter interface otherwise. Plus, the greeter is passed as a plugin reference to it, so we don't know its concrete data type until runtime.
+Now we want to implement a function that uses an informal greeter interface if it supported by the provided plugin, or formal greeter interface otherwise. Plus, the greeter is passed as a plugin reference to it, so we don't know its concrete data type until runtime.
 
 ```rust
 pub fn rsvp(first_name: &str, last_name: &str, plugin: &???) -> String {
@@ -161,9 +161,9 @@ Let's dig deeper into `Any` trait to see how it works and why it doesn't support
 
 ### Digging into Any
 
-The `downcast_ref` function on `Any` trait checks if `self` is of type `T` and if so, does an unsafe cast to type `T`. This is problem number one. If `T` is a trait, we are supposed to return a trait object. However, trait object needs to have two pointers: pointer to the data itself and pointer to the virtual table. We have data pointer (via `self`), but we would not have a pointer to the virtual table if type variable `T` is substituted with a trait.
+The `downcast_ref` function on `Any` trait checks if `self` is of type `T` and if so, does an unsafe cast to type `T`. This is problem number one. If `T` is a trait, we are supposed to return a trait object. However, trait object needs to have two pointers: pointer to the data themselves and pointer to the virtual table. We have data pointer (via `self`), but we would not have a pointer to the virtual table if type variable `T` is substituted with a trait.
 
-The problem number two is the implementation of the `is` function. It doesn't do much: it gets some magic "type id" value" and compares it to the value reported by the data type itself. There is a `get_type_id` function on an `Any` trait which could be invoked by a dynamic dispatch (via invocation on a trait object). The implementation of this function for each concrete type knows the type id (by using the same `TypeId` machinery).
+The problem number two is the implementation of the `is` function. It doesn't do much: it gets some magic "type id" value and compares it to the value reported by the data type itself. There is a `get_type_id` function on an `Any` trait which could be invoked by a dynamic dispatch (via invocation on a trait object). The implementation of this function for each concrete type knows the type id (by using the same `TypeId` machinery).
 
 Can we extend this mechanism to work with traits?
 
@@ -177,7 +177,7 @@ pub fn downcast_ref<T: ?Sized>(&self) -> Option<&T> { ... }
 
 The difference here is that we are canceling the `Sized` requirement by using a negative bound `?Sized`, so we can substitute a trait name for the type variable `T`. If `T` is substituted with a trait name, the return type would be an `Option` of trait object.
 
-What about internal implementation? We need a way to somehow get a pointer to the virtual table corresponding to the implementation of trait substituted to type variable `T` for the type which we "know" by another trait object (let's call it `Plugin` trait, it will be a trait every plugin will be implementing). The idea here is that by using a dynamic dispatch, we can "ask" the type itself to provide its implementation for the given trait `T`.
+What about internal implementation? We need a way to somehow get a pointer to the virtual table corresponding to the implementation of a trait substituted to a type variable `T` for the type which we "know" by another trait object (let's call it `Plugin` trait, it will be a trait every plugin will be implementing). The idea here is that by using a dynamic dispatch, we can "ask" the type itself to provide its implementation for the given trait `T`.
 
 The plan is to create a function on a trait that given target trait type `T` will return a trait object `&T` for the type of `Self`. I was about to call this function [`QueryInterface`](https://msdn.microsoft.com/en-us/library/windows/desktop/ms682521(v=vs.85).aspx)[^5], but decided to keep the same name as for the "public API" function, with two underscores as a prefix: 
 
@@ -189,7 +189,7 @@ pub trait Plugin {
 
 However, what should we take as the `target` parameter and what should we return from this function? The first answer is straightforward: we can use the same `TypeId` mechanism to get the unique identifier for the trait.
 
-The second one is a little bit tricky. We cannot return trait object `&T`, as this function cannot have type parameters[^3]. If we cannot return a trait object, can we return... a [`TraitObject`](https://doc.rust-lang.org/1.26.2/std/raw/struct.TraitObject.html)?
+The second one is a little bit tricky. We cannot return a trait object `&T`, as this function cannot have type parameters[^3]. If we cannot return a trait object, can we return... a [`TraitObject`](https://doc.rust-lang.org/1.26.2/std/raw/struct.TraitObject.html)?
 
 `TraitObject` is a type in the standard library which has the same memory representation as a trait object. It is a nightly-only struct, but it can be re-created in user code (with an assumption that layout won't change[^4]). However, for this exercise, we would enable the nightly feature.
 
@@ -220,7 +220,7 @@ impl Plugin for SimpleGreeter {
 }
 ```
 
-In the implementation, we check target trait against all traits implemented by the concrete type. In case there is a match, we generate trait object by casting `self` (which is of `&SimpleGreeter` type) to the reference to the target trait. Then, we use unsafe [`std::mem::transmute`](https://doc.rust-lang.org/std/mem/fn.transmute.html) call to transmute it to the `TraitObject`.
+In the implementation, we check target trait against all traits implemented by the concrete type. In case there is a match, we generate a trait object by casting `self` (which is of `&SimpleGreeter` type) to the reference to the target trait. Then, we use unsafe [`std::mem::transmute`](https://doc.rust-lang.org/std/mem/fn.transmute.html) call to transmute it to the `TraitObject`.
 
 Finally, let's look at the public API for the downcasting, the `downcast_ref` function on the `Plugin` trait. Now that we have a way to retrieve `TraitObject` for the given trait type `T`, we can simply cast it back:
 
