@@ -18,7 +18,7 @@ However, what if we want to dispatch a call based on both a type of the interfac
 
 ### Is it a Failure?
 
-One example where this could be useful (which looks reasonable to me, but could be a totally terrible idea[^1]!) would be a [`failure`](https://crates.io/crates/failure) crate. This crate provides an error handling abstraction which, among other things, allows to build chains of errors and iterate these chains.
+One example where this could be useful (which looks reasonable to me, but could be a totally terrible idea!) would be a [`failure`](https://crates.io/crates/failure) crate. This crate provides an error handling abstraction which, among other things, allows to build chains of errors and iterate these chains.
 
 This is convenient in higher-level error handling code, for example, to collect all the information down the error chain to present it to the end user or the calling system. Each error, in this case, will be hidden behind a trait object of a [`Fail`](https://docs.rs/failure/0.1.1/failure/trait.Fail.html) trait. However, there is not much you can do with that `Fail` trait. Basically, you can go down the chain or convert an error to its string representation.
 
@@ -41,7 +41,7 @@ trait ExtraInfo {
 }
 ```
 
-So we can then somehow "cross-cast" a trait object of `Fail` to a trait object of `ExtraInfo`. Then, we could call `code` and `location` functions on that `ExtraInfo` trait object to collect additional information. Same way as in Java where you can try to cast one interface to another[^1].
+So we can then somehow "cross-cast" a trait object of `Fail` to a trait object of `ExtraInfo`. Then, we could call `code` and `location` functions on that `ExtraInfo` trait object to collect additional information. Same way as in Java where you can try to cast one interface to another.
 
 ### Plugin Registry
 
@@ -67,7 +67,7 @@ trait FormalGreeter {
 }
 ```
 
-We could have merged both traits into one and use a single trait object. If a certain function is "not implemented", we could have used a `Result` returning an error (as one of the options). It would be a runtime error if we would call missing functionality, but it's the same for the dynamic dispatch we are trying to build.
+We could have merged both traits into one and use a single trait object. If a certain function is "not implemented", we could have used a `Result` returning an error (as one of the options). It would be a runtime error if we would try to invoke a missing functionality, but it would be the same for the dynamic dispatch: if functionality is not supported, we would only know about that at runtime.
 
 Let's create two implementations of these plugins. One implementation will support both the simple greeting interface and the formal one. Another implementation will count greets and will only support the formal greeting interface[^2].
 
@@ -161,9 +161,9 @@ Let's dig deeper into `Any` trait to see how it works and why it doesn't support
 
 ### Digging into Any
 
-The `downcast_ref` function on `Any` trait checks if `self` is of type `T` and if so, does an unsafe cast to type `T`. This is problem number one. If `T` is a trait, we are supposed to return a trait object. However, trait object needs to have two pointers: pointer to the data itself and pointer to the virtual table. We have data pointer (via `self`), but we would not have a pointer to the virtual table if type variable `T` is substituted with a trait.
+The `downcast_ref` function on `Any` trait checks if `self` is of type `T` and if so, does an unsafe cast to type `T`. This is a problem number one. In case `T` is a trait, we are supposed to return a trait object. However, trait object needs to have two pointers: pointer to the data itself and pointer to the virtual table. We have a data pointer (via `self`), but we would not have a pointer to the virtual table!
 
-The problem number two is the implementation of the `is` function. It doesn't do much: it gets some magic "type id" value" and compares it to the value reported by the data type itself. There is a `get_type_id` function on an `Any` trait which could be invoked by a dynamic dispatch (via invocation on a trait object). The implementation of this function for each concrete type knows the type id (by using the same `TypeId` machinery).
+The problem number two is the implementation of the `is` function. It doesn't do much: it gets some magic "type id" value" and compares it to the value reported by the data type itself. There is a `get_type_id` function on an `Any` trait which could be invoked via a trait object. The implementation of this function for each concrete type knows the type id (by using the same `TypeId` machinery).
 
 Can we extend this mechanism to work with traits?
 
@@ -177,9 +177,9 @@ pub fn downcast_ref<T: ?Sized>(&self) -> Option<&T> { ... }
 
 The difference here is that we are canceling the `Sized` requirement by using a negative bound `?Sized`, so we can substitute a trait name for the type variable `T`. If `T` is substituted with a trait name, the return type would be an `Option` of trait object.
 
-What about internal implementation? We need a way to somehow get a pointer to the virtual table corresponding to the implementation of trait substituted to type variable `T` for the type which we "know" by another trait object (let's call it `Plugin` trait, it will be a trait every plugin will be implementing). The idea here is that by using a dynamic dispatch, we can "ask" the type itself to provide its implementation for the given trait `T`.
+What about the internal implementation? We need a way to somehow get a pointer to the virtual table. This virtual table must correspond to the implementation of trait substituted for `T`. The idea here is that by using a dynamic dispatch on a common interface `Plugin`, we can "ask" the type itself to provide its implementation for the given trait `T`.
 
-The plan is to create a function on a trait that given target trait type `T` will return a trait object `&T` for the type of `Self`. I was about to call this function [`QueryInterface`](https://msdn.microsoft.com/en-us/library/windows/desktop/ms682521(v=vs.85).aspx)[^5], but decided to keep the same name as for the "public API" function, with two underscores as a prefix: 
+The plan is to create a function on a trait that the given target trait type `T` will return a trait object `&T`. I was about to call this function [`QueryInterface`](https://msdn.microsoft.com/en-us/library/windows/desktop/ms682521(v=vs.85).aspx)[^5], but decided to use a different name:
 
 ```rust
 pub trait Plugin {
@@ -251,14 +251,14 @@ Note that we cannot transmute `TraitObject` directly to the type `&T` using `Som
    = note: target type: &T (pointer to T)
 ```
 
-The reason is that we cannot enforce `T` to be substituted with a trait. If it is substituted with the concrete type name, the size of the reference would be the size of one pointer and it would not be possible to transmute. Instead, we cast the pointer to `TraitObject` into the pointer to `&T` and read the value using that pointer.
+The reason is that we cannot enforce `T` to be substituted with a trait. If it is substituted with the concrete type name, the size of the reference would be the size of one pointer and it would not be possible to transmute. Instead, we cast the pointer to the `TraitObject` into the pointer to `&T` and read the value using that pointer.
 
 ### Test!
 
 Finally, let's rewrite our function to use `Plugin` instead of `Any` and change the test code:
 
 ```rust
-pub fn rsvp(first_name: &str, last_name: &str, plugin: &(Plugin + 'static)) -> String {
+pub fn rsvp(first_name: &str, last_name: &str, plugin: &Plugin) -> String {
     if let Some(gt) = plugin.downcast_ref::<Greeter>() {
         return gt.greet(first_name);
     }
@@ -388,8 +388,11 @@ trait Greeter: Plugin { ... }
 
 ## Final Thoughts
 
-Is this pattern useful in Rust at all? I don't know. However, with Rust language targeting very different domains, I think, being able to approach problems from different angles is helpful.
+I don't know how useful this pattern in Rust, but with Rust targeting very different domains being able to approach problems from the different angles should be helpful.
 
+It is, however, limited in that it requires a `'static` lifetime.
+
+### References
 
 [^1]: Full disclaimer: I did use Java a lot, so be warned!
 [^2]: I'm using an `AtomicUsize` for the interior mutability to avoid dealing with mutable references (all references to trait objects will be shared references).
