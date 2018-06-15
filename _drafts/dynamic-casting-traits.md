@@ -253,7 +253,7 @@ Note that we cannot transmute `TraitObject` directly to the type `&T` using `Som
 
 The reason is that we cannot enforce `T` to be substituted with a trait. If it is substituted with the concrete type name, the size of the reference would be the size of one pointer and it would not be possible to transmute. Instead, we cast the pointer to `TraitObject` into the pointer to `&T` and read the value using that pointer.
 
-### Final Test
+### Test!
 
 Finally, let's rewrite our function to use `Plugin` instead of `Any` and change the test code:
 
@@ -393,7 +393,7 @@ Is this pattern useful in Rust at all? I don't know. However, with Rust language
 
 [^1]: Full disclaimer: I did use Java a lot, so be warned!
 [^2]: I'm using an `AtomicUsize` for the interior mutability to avoid dealing with mutable references (all references to trait objects will be shared references).
-[^3]: https://doc.rust-lang.org/1.26.2/book/second-edition/ch17-02-trait-objects.html#object-safety-is-required-for-trait-objects
-[^4]: It might, though: https://github.com/rust-lang/rfcs/issues/2035
+[^3]: [Object Safety Is Required for Trait Objects](https://doc.rust-lang.org/1.26.2/book/second-edition/ch17-02-trait-objects.html#object-safety-is-required-for-trait-objects)
+[^4]: [It might, though](https://github.com/rust-lang/rfcs/issues/2035)
 [^5]: This is indeed a reference to the [Component Object Model](https://en.wikipedia.org/wiki/Component_Object_Model) which works in a very similar way.
-[^6]: https://stackoverflow.com/questions/28632968/why-doesnt-rust-support-trait-object-upcasting
+[^6]: [Why doesn't Rust support trait object upcasting?](https://stackoverflow.com/questions/28632968/why-doesnt-rust-support-trait-object-upcasting)
