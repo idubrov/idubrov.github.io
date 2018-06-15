@@ -10,23 +10,23 @@ Instead, I would like to do an experiment of making dynamic dispatch even more d
 
 ## How Dynamic is a Dynamic Dispatch?
 
-The way Rust dynamic dispatch works is via a special reference type, a trait objects, which provide a way to dispatch a call based on a concrete type. Again, I am going to skip the details, but the idea is that trait object is represented internally by two pointers. The first pointer points to the data itself. The second pointer points to a virtual table, where each "slot" in the table is the address of the function.
+The way Rust dynamic dispatch works is via a special reference type, a trait object which provides a way to dispatch a call based on a concrete type. Again, I am going to skip the details, but the idea is that a trait object is represented internally by two pointers. The first pointer points to the data themselves. The second pointer points to a virtual table where each "slot" is the address of the function.
 
-Every time Rust compiler generates code to invoke a function on a trait object, it will the generated code would destructure trait object into two pointers, get the address of the function from the virtual table (each function is assigned a unique slot in the table, so this is a simple indexing operation), then call that function, providing pointer to the data as the first parameter (which becomes `&self` in the function).
+Every time Rust compiler generates code to invoke a function on a trait object, the generated code would destructure the trait object into two pointers, get the address of the function from the virtual table (each function is assigned a unique slot in the table, so this is a simple indexing operation), then call that function, providing a pointer to the data as the first parameter (which becomes `&self` in the function).
 
 However, what if we want to dispatch a call based on both a type of the interface we want to dispatch on and the concrete type? What does it mean and why would we even want that?
 
 ### Is it a Failure?
 
-One example where this could be useful (which looks reasonable to me but could be a totally terrible idea[^1]!) would be a [`failure`](https://crates.io/crates/failure) crate. This crate provides an error handling abstraction which, among other things, allows to build chains of errors and iterate these chains.
+One example where this could be useful (which looks reasonable to me, but could be a totally terrible idea[^1]!) would be a [`failure`](https://crates.io/crates/failure) crate. This crate provides an error handling abstraction which, among other things, allows to build chains of errors and iterate these chains.
 
-This is convenient in higher-level error handling code. For example, to collect all the information down the error chain to present it to the end user or the calling system. Each error, in this case, will be hidden behind a trait object of a [`Fail`](https://docs.rs/failure/0.1.1/failure/trait.Fail.html) trait. However, there is not much you can do with that `Fail` trait. Basically, you can go down the chain or convert error to its string representation.
+This is convenient in higher-level error handling code, for example, to collect all the information down the error chain to present it to the end user or the calling system. Each error, in this case, will be hidden behind a trait object of a [`Fail`](https://docs.rs/failure/0.1.1/failure/trait.Fail.html) trait. However, there is not much you can do with that `Fail` trait. Basically, you can go down the chain or convert an error to its string representation.
 
-However, to help with that, `Fail` trait has a built-in downcasting functionality. There is a function on `Fail` trait, `downcast_ref`, which, given the target type, tries to "cast" the referenced `Fail` implementor to that type. If type matches (for example, you have `MyError` type implementing `Fail` trait and you are casting `Fail` trait object to that `MyError` type), it will return a reference to the concrete type.
+However, to help with that, `Fail` trait has a built-in downcasting functionality. There is a function on `Fail` trait, `downcast_ref` which, given the target type, tries to "cast" the referenced `Fail` implementor to that type. If type matches (for example, you have `MyError` type implementing `Fail` trait and you are casting `Fail` trait object to that `MyError` type), it will return a reference to the concrete type.
 
-This way you can cast an error to something more concrete and get additional information from it (for example, it could be column and line information).
+This way you can cast an error to something more concrete and retrieve additional information from it (for example, it could be column and line information).
 
-One limitation, though, is that you can only cast to a concrete type. You cannot cast to another trait. Therefore, if you have different types of errors, but which have similar "extra" information attached to them (like line and column information, or any other additional detailed information about the error), the code which processes the chain of errors needs to know all the possible types.
+One limitation, though, is that you can only cast to a concrete type. You cannot cast to another trait. Therefore, if you have different types of errors, but which have similar "extra" information attached to them (like line and column information, or any other additional detailed information about the error), the code which processes the chain of errors, needs to know all the possible types.
 
 Not very convenient! Can we do better?
 
@@ -41,7 +41,7 @@ trait ExtraInfo {
 }
 ```
 
-So we can then somehow "cross-cast" trait object of `Fail` to a trait object of `ExtraInfo`. Then, we could call `code` and `location` functions on that `ExtraInfo` trait object to collect additional information. Same way as in Java, where you can try to cast one interface to another[^1].
+So we can then somehow "cross-cast" a trait object of `Fail` to a trait object of `ExtraInfo`. Then, we could call `code` and `location` functions on that `ExtraInfo` trait object to collect additional information. Same way as in Java where you can try to cast one interface to another[^1].
 
 ### Plugin Registry
 
