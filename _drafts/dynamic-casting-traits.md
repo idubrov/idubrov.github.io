@@ -10,9 +10,9 @@ Instead, I would like to do an experiment of making dynamic dispatch even more d
 
 ## How Dynamic is a Dynamic Dispatch?
 
-The way Rust dynamic dispatch works is via a special reference type, a trait object which provides a way to dispatch a call based on a concrete type. Again, I am going to skip the details, but the idea is that a trait object is represented internally by two pointers. The first pointer points to the data themselves. The second pointer points to a virtual table where each "slot" is the address of the function.
+The way Rust dynamic dispatch works is via a special reference type, a trait object which provides a way to dispatch a call based on a concrete type. Again, I am going to skip the details, but the idea is that a trait object is represented internally by two pointers. The first pointer points to the data itself. The second pointer points to a virtual table where each "slot" is the address of the function.
 
-Every time Rust compiler generates code to invoke a function on a trait object, the generated code would destructure the trait object into two pointers, get the address of the function from the virtual table (each function is assigned a unique slot in the table, so this is a simple indexing operation), then call that function, providing a pointer to the data as the first parameter (which becomes `&self` in the function).
+Every time Rust compiler generates code to invoke a function on a trait object, the generated code would destructure the trait object into two pointers, the data pointer and virtual table pointer. Then, it would lookup the virtual table to get the address of the function to call (each function is assigned a unique slot in the table, so this is a simple indexing operation). Finally, the code would call that function, providing a pointer to the data as the first parameter (which becomes `&self` in the function).
 
 However, what if we want to dispatch a call based on both a type of the interface we want to dispatch on and the concrete type? What does it mean and why would we even want that?
 
@@ -41,7 +41,7 @@ trait ExtraInfo {
 }
 ```
 
-So we can then somehow "cross-cast" a trait object of `Fail` to a trait object of `ExtraInfo`. Then, we could call `code` and `location` functions on that `ExtraInfo` trait object to collect additional information. Same way as in Java where you can try to cast one interface to another.
+So we can then somehow "cross-cast" a trait object of `Fail` to a trait object of `ExtraInfo`. Then, we could call `code` and `location` functions on that `ExtraInfo` trait object to collect additional information. Like casting one interface to another in Java!
 
 ### Plugin Registry
 
@@ -53,7 +53,7 @@ Let's try to build this plugin registry.
 
 ## Building the Registry
 
-For this experiment, we are creating two specific plugin interfaces. Both are just regular Rust traits:
+For this experiment, we will start with two specific plugin interfaces. Both are just regular Rust traits:
 
 ```rust
 /// Generate a greeting message for the given name.
@@ -61,13 +61,15 @@ trait Greeter {
     fn greet(&self, name: &str) -> String;
 }
 
-/// This is a formal version, which uses the first name and the last name.
+/// This is a formal version, which uses a first name and a last name.
 trait FormalGreeter {
     fn greet_formal(&self, first_name: &str, last_name: &str) -> String;
 }
 ```
 
-We could have merged both traits into one and use a single trait object. If a certain function is "not implemented", we could have used a `Result` returning an error (as one of the options). It would be a runtime error if we would try to invoke a missing functionality, but it would be the same for the dynamic dispatch: if functionality is not supported, we would only know about that at runtime.
+We could have merged both traits into one, with both functions, `greet` and `greet_formal`. If a certain function is "not supported", we could have used a `Result` returning an error (as one of the options).
+
+It would be a runtime error if we would try to invoke a missing functionality, but it would be the same for the dynamic dispatch: if functionality is not supported, we would only know about that at runtime.
 
 Let's create two implementations of these plugins. One implementation will support both the simple greeting interface and the formal one. Another implementation will count greets and will only support the formal greeting interface[^2].
 
@@ -75,7 +77,7 @@ Let's create two implementations of these plugins. One implementation will suppo
 ```rust
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// Simple greeter
+/// Simple greeter, implements both `Greeter` and `FormalGreeter` traits
 pub struct SimpleGreeter(String);
 
 impl Greeter for SimpleGreeter {
@@ -90,6 +92,7 @@ impl FormalGreeter for SimpleGreeter {
     }
 }
 
+/// Counting greeter, only implements `FormalGreeter` trait
 pub struct CountingGreeter(AtomicUsize);
 
 impl FormalGreeter for CountingGreeter {
@@ -100,7 +103,7 @@ impl FormalGreeter for CountingGreeter {
 }
 ```
 
-Now we want to implement a function that uses an informal greeter interface, if it supported by the provided plugin, or formal greeter interface otherwise. Plus, the greeter is passed as a plugin reference to it, so we don't know its concrete data type until runtime.
+Now we want to implement a function that tries to an informal greeter interface, if it supported by the provided plugin. If plugin, however, does not support an informal interface, it will try to use formal interface. The function will use a dynamic dispatch, since according to the story, we don't know the real implementation until runtime.
 
 ```rust
 pub fn rsvp(first_name: &str, last_name: &str, plugin: &???) -> String {
@@ -108,7 +111,7 @@ pub fn rsvp(first_name: &str, last_name: &str, plugin: &???) -> String {
 }
 ```
 
-First, what should we specify as the `plugin` parameter type? [Any](https://doc.rust-lang.org/std/any/index.html) ideas?
+First, what should we specify as the `plugin` parameter type, so it basically means "any implementation whatsoever"? Like in dynamic typing, there you might have a reference to "any object". [Any](https://doc.rust-lang.org/std/any/index.html) ideas?
 
 ### Any
 
@@ -161,7 +164,9 @@ Let's dig deeper into `Any` trait to see how it works and why it doesn't support
 
 ### Digging into Any
 
-The `downcast_ref` function on `Any` trait checks if `self` is of type `T` and if so, does an unsafe cast to type `T`. This is a problem number one. In case `T` is a trait, we are supposed to return a trait object. However, trait object needs to have two pointers: pointer to the data itself and pointer to the virtual table. We have a data pointer (via `self`), but we would not have a pointer to the virtual table!
+Let's take a look at the `downcast_ref` function of the `Any` trait, which could be seen [here](https://doc.rust-lang.org/1.26.2/src/core/any.rs.html#196-204).
+
+The `downcast_ref` function on `Any` trait checks if `self` is of type `T` and if so, does an unsafe cast to type `T`. This is a problem number one. In case `T` is a trait, we are supposed to return a trait object. However, trait object needs to have two pointers: pointer to the data itself and pointer to the virtual table. We have a data pointer (via `self`), but we don't have a pointer to the virtual table!
 
 The problem number two is the implementation of the `is` function. It doesn't do much: it gets some magic "type id" value" and compares it to the value reported by the data type itself. There is a `get_type_id` function on an `Any` trait which could be invoked via a trait object. The implementation of this function for each concrete type knows the type id (by using the same `TypeId` machinery).
 
@@ -189,7 +194,7 @@ pub trait Plugin {
 
 However, what should we take as the `target` parameter and what should we return from this function? The first answer is straightforward: we can use the same `TypeId` mechanism to get the unique identifier for the trait.
 
-The second one is a little bit tricky. We cannot return trait object `&T`, as this function cannot have type parameters[^3]. If we cannot return a trait object, can we return... a [`TraitObject`](https://doc.rust-lang.org/1.26.2/std/raw/struct.TraitObject.html)?
+The second one is a little bit tricky. We cannot return a trait object `&T`, as this function cannot have type parameters[^3]. If we cannot return a trait object, can we return... a [`TraitObject`](https://doc.rust-lang.org/1.26.2/std/raw/struct.TraitObject.html)?
 
 `TraitObject` is a type in the standard library which has the same memory representation as a trait object. It is a nightly-only struct, but it can be re-created in user code (with an assumption that layout won't change[^4]). However, for this exercise, we would enable the nightly feature.
 
@@ -279,7 +284,7 @@ fn test() {
 
 It compiles and the test passes!
 
-## Final Touches
+## Few Improvements
 
 ### Casting to the Concrete Type
 
@@ -388,9 +393,11 @@ trait Greeter: Plugin { ... }
 
 ## Final Thoughts
 
-I don't know how useful this pattern in Rust, but with Rust targeting very different domains being able to approach problems from the different angles should be helpful.
+So, this is one way you can do casting between traits! One limitation, however, limited in that it requires a `'static` bound on the type.
 
-It is, however, limited in that it requires a `'static` lifetime.
+Another limitation is that all "implemented" interfaces need to be declared upfront (because in this implementation we need to generate a "dispatching" function that should know all supported interfaces). This shortcoming could be lifted by implementing a dynamic registry for the implemented traits. In the end, all we need is a mapping from two type identifiers (`TypeId` of the concrete type and `TypeId` of a trait) into a virtual table, corresponding to that combination. It could be a shared map that is somehow dynamically built and then looked up during the casting. Initializing such map, however, could be tricky -- the beauty of the implementation above is that it does not require any initialization.
+
+The full source code is [here](https://github.com/idubrov/experiments/blob/master/casting-traits/src/lib.rs).
 
 ### References
 
@@ -398,5 +405,5 @@ It is, however, limited in that it requires a `'static` lifetime.
 [^2]: I'm using an `AtomicUsize` for the interior mutability to avoid dealing with mutable references (all references to trait objects will be shared references).
 [^3]: [Object Safety Is Required for Trait Objects](https://doc.rust-lang.org/1.26.2/book/second-edition/ch17-02-trait-objects.html#object-safety-is-required-for-trait-objects)
 [^4]: [It might, though](https://github.com/rust-lang/rfcs/issues/2035)
-[^5]: This is indeed a reference to the [Component Object Model](https://en.wikipedia.org/wiki/Component_Object_Model) which works in a very similar way.
+[^5]: This is indeed a reference to the [Component Object Model](https://en.wikipedia.org/wiki/Component_Object_Model) which works similarly (the way I remember it)!
 [^6]: [Why doesn't Rust support trait object upcasting?](https://stackoverflow.com/questions/28632968/why-doesnt-rust-support-trait-object-upcasting)
