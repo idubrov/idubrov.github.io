@@ -401,6 +401,8 @@ The full source code is [here](https://github.com/idubrov/experiments/blob/maste
 
 ### References
 
+Discussion on [/r/rust](https://www.reddit.com/r/rust/comments/8rl5ky/blog_dynamic_casting_for_traits/).
+
 [^1]: Full disclaimer: I did use Java a lot, so be warned!
 [^2]: I'm using an `AtomicUsize` for the interior mutability to avoid dealing with mutable references (all references to trait objects will be shared references).
 [^3]: [Object Safety Is Required for Trait Objects](https://doc.rust-lang.org/1.26.2/book/second-edition/ch17-02-trait-objects.html#object-safety-is-required-for-trait-objects)
