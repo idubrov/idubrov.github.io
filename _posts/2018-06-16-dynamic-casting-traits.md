@@ -399,6 +399,8 @@ Another limitation is that all "implemented" interfaces need to be declared upfr
 
 The full source code is [here](https://github.com/idubrov/experiments/blob/master/casting-traits/src/lib.rs).
 
+P.S. There is a [library on crates.io](https://crates.io/crates/query_interface) implementing this idea. It also implements more features, like dynamic registration of interfaces and support for referenced counted pointers (`Rc` and `Arc`).
+
 ### References
 
 Discussion on [/r/rust](https://www.reddit.com/r/rust/comments/8rl5ky/blog_dynamic_casting_for_traits/).
